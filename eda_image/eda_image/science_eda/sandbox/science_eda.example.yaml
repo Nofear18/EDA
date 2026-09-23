@@ -1,0 +1,176 @@
+# sandbox HTTP 服务的 science_eda 配置示例。
+#
+# 使用方式：
+#   python -m science_eda.sandbox.server --config science_eda/sandbox/science_eda.example.yaml
+#
+# 需要保留顶层 "sandbox" 键；加载器会读取该段并合并到 SandboxConfig()。
+# 该示例默认启动纯 interactive v1 服务，不挂载 legacy batch API，也不启动 batch 工具 pool。
+# 参数按“仅 interactive”“两套接口共用”“仅 legacy batch”“当前预留”分组。
+# legacy_batch_enabled=false 时，legacy batch 和 pool 参数仍会被加载，但不会创建 SessionManager 或启动 pool。
+# 未列出的 sandbox 字段会使用 science_eda.config.SandboxConfig 中的默认值。
+# client_mode 和 endpoint 是 ExecutionClient 客户端配置，不属于服务端启动参数。
+sandbox:
+  # ── HTTP 服务与接口开关（server） ──────────────────────────────────────────
+  # HTTP sandbox 服务监听的 IP 地址。
+  # interactive control plane 只允许 loopback；仅当 legacy batch 需要非本机监听时才关闭 interactive。
+  server_host: "127.0.0.1"
+
+  # HTTP sandbox 服务监听的端口。
+  # 可选值/范围：1 到 65535；常用默认端口是 8765。
+  server_port: 8765
+
+  # 是否挂载 /create_session、/execute 等 legacy batch API 并启动 batch 工具 pool。
+  # 纯 interactive 服务应关闭；默认代码值为 true，以兼容既有部署。
+  legacy_batch_enabled: false
+
+  # 本地持久化 interactive WorkspaceSession control plane。启用时挂载 /v1 路由并拒绝非 loopback。
+  # v1 仅使用普通 TCP，不实现 UDS、MCP、CLI、Claude Adapter 或高层 Python client。
+  interactive_enabled: true
+
+  # ── WorkspaceSession（仅 interactive v1） ─────────────────────────────────
+  # Interactive 持久状态、runtime scratch、execution logs 和 SQLite registry。
+  # 三个空路径会分别从 state root 派生 runtime/、logs/ 和 registry.sqlite3。
+  interactive_state_root: "~/.science_eda/interactive"
+  interactive_runtime_root: ""
+  interactive_log_root: ""
+  interactive_registry_path: ""
+
+  # capacity 是每种工具同时存活的专属进程/license 槽位，不会在 daemon 启动时预热进程。
+  # 达到容量后，同类 Session 的 create 最多等待 interactive_create_capacity_timeout 秒。
+  interactive_innovus_capacity: 5
+  interactive_primetime_capacity: 5
+  interactive_create_capacity_timeout: 300.0
+  # execute 未提供 timeout_ms 时使用的默认墙钟超时；2 小时适合加载较大的设计数据库。
+  interactive_execute_timeout: 7200
+  # 非 CLOSED Session 记录总上限，包含 READY/BUSY/LOST/STOPPED，不等同于进程并发数。
+  interactive_max_sessions: 100
+
+  # READY runtime 连续空闲 48 小时后停止进程并释放 license。
+  interactive_runtime_idle_ttl: 172800
+  # runtime STOPPED/LOST 后再等 24 小时自动关闭 Session；0 表示禁止自动关闭。
+  interactive_session_retention_ttl: 86400
+  # create request_id 的幂等结果保留 30 天；不是 Session 生命周期。
+  interactive_create_request_retention_ttl: 2592000
+  # Session CLOSED 后的 registry、history 和日志再保留 90 天后 GC。
+  interactive_audit_retention_ttl: 7776000
+  # idle、自动关闭和 GC 的后台扫描间隔。
+  interactive_sweep_interval: 30
+  interactive_session_event_max_records: 10000
+
+  # preview 是 HTTP 响应内的有界输出；完整输出写 local_log_path。
+  # execution/session log 是单次/单 Session 的累计日志配额，不会预分配对应磁盘空间。
+  # 以下单位均为 bytes，history page size 除外。
+  interactive_max_code_bytes: 1048576
+  interactive_output_preview_bytes: 8192
+  interactive_output_preview_max_bytes: 32768
+  interactive_execution_log_max_bytes: 268435456
+  interactive_session_log_max_bytes: 1073741824
+  interactive_reader_chunk_bytes: 65536
+  interactive_history_default_page_size: 20
+  interactive_history_max_page_size: 100
+  interactive_history_page_max_bytes: 4194304
+
+  # Dedicated runtime healthcheck；environment allowlist 为 null 时兼容性继承 daemon 当前环境。
+  # 设为显式列表（包括 []）可限制工具只继承所列名称。
+  innovus_interactive_healthcheck_tcl: "puts __SCIENCE_EDA_INTERACTIVE_HEALTHCHECK__"
+  primetime_interactive_healthcheck_tcl: "puts __SCIENCE_EDA_PT_INTERACTIVE_HEALTHCHECK__"
+  innovus_interactive_env_allowlist: null
+  primetime_interactive_env_allowlist: null
+
+  # ── EDA 进程（batch/interactive 共用） ────────────────────────────────────
+  # 以下是 batch/interactive 共用的 EDA 进程启动与资源参数。
+  # memory_mb 是尽力而为的 RLIMIT_AS 地址空间限制，不是 cgroup 或容器内存隔离。
+  # EDA 内存需求与设计规模强相关；示例不限制，站点验收后可设置正整数 MiB。
+  memory_mb: 0
+
+  # 尽力而为的 RLIMIT_NPROC；正整数表示限制，0 或负数表示不限制。
+  max_pids: 256
+
+  # PrimeTime 启动参数；startup Tcl 在每个 WorkspaceSession ready 前执行。
+  primetime_bin: pt_shell
+  primetime_args: []
+  primetime_startup_tcl: ""
+  primetime_startup_timeout: 300
+
+  # Innovus 启动参数；startup Tcl 在每个 WorkspaceSession ready 前执行。
+  innovus_bin: innovus
+  innovus_args:
+    - -nowin
+  innovus_startup_tcl: ""
+  # startup timeout 包含进程启动、license checkout、startup Tcl、healthcheck 和 workspace cwd 校验；
+  # 它不限制后续 execute，execute 使用 interactive_execute_timeout 或请求中的 timeout_ms。
+  innovus_startup_timeout: 300
+
+  # ── Legacy batch Session（仅旧版 API / ImportBackend） ─────────────────────
+  # 以下字段不影响 /v1 WorkspaceSession；legacy_batch_enabled=false 时 HTTP 服务不会使用它们。
+
+  # Batch execute 未显式传 timeout 时的默认墙钟超时。Interactive 使用 interactive_execute_timeout。
+  timeout: 30
+
+  # Batch logical Session 的空闲回收与扫描间隔。Interactive 使用 interactive_* retention 字段。
+  ttl: 3600
+  ttl_sweep_interval: 30
+
+  # Batch worker 进程级失败后的额外重启/历史重放次数；Interactive runtime 丢失后不会 replay。
+  max_retries: 3
+
+  # Batch Session 工作目录根；空值派生为系统临时目录下的 eda_sandbox。
+  # Interactive 不把 workspace 放在这里；若非空，仅会把该目录视为禁止重叠的 managed root。
+  sandbox_root: ""
+
+  # Batch Python/Shell/Tcl 配置。python_path 当前是兼容配置表面，本地 Worker 仍由当前 Python 启动。
+  python_path: python
+  shell_path: /bin/bash
+  tcl_shell: tclsh
+
+  # 仅在 Interactive create 显式传 version 时用于执行 ma tool/version。
+  interactive_module_shell_path: /bin/csh
+
+  # Batch replay policy 当前只支持 none；Interactive 固定不 replay。
+  primetime_replay_policy: none
+  innovus_replay_policy: none
+
+  # ── PrimeTime physical pool（仅 legacy batch） ─────────────────────────────
+  # Interactive PrimeTime 每个 WorkspaceSession 创建专属进程，从不借用或归还该 pool。
+  primetime_use_pool: false
+  primetime_pool_size: 1
+  primetime_pool_prewarm: false
+  primetime_pool_prewarm_concurrency: 16
+  primetime_pool_replenish: true
+  primetime_pool_queue_timeout: 300.0
+  # 空 reset Tcl 表示 logical Session 关闭时丢弃 physical worker，不回池复用。
+  primetime_pool_reset_tcl: ""
+  primetime_pool_clean_tcl_state: true
+  primetime_pool_healthcheck_tcl: "puts __SCIENCE_EDA_PT_POOL_HEALTHCHECK__"
+  primetime_pool_wait_log_interval: 30
+
+  # ── Innovus physical pool（仅 legacy batch） ───────────────────────────────
+  # Interactive Innovus 每个 WorkspaceSession 创建专属进程，从不借用或归还该 pool。
+  # size 是 batch physical worker 上限；prewarm=true 会在 daemon 启动时按需占用 license。
+  innovus_pool_size: 1
+  innovus_pool_reuse: true
+  innovus_pool_prewarm: false
+  innovus_pool_prewarm_concurrency: 16
+  innovus_pool_replenish: false
+  innovus_pool_queue_timeout: 300.0
+  innovus_pool_reset_tcl: freeDesign
+  innovus_pool_clean_tcl_state: true
+  innovus_pool_healthcheck_tcl: "puts __SCIENCE_EDA_POOL_HEALTHCHECK__"
+  # reuse_with_retry / discard / ignore；仅处理 batch worker reset 不完整告警。
+  innovus_pool_incomplete_reset_policy: reuse_with_retry
+  innovus_pool_wait_log_interval: 30
+
+  # Batch HTTP / ImportBackend 的 snapshot staging cache；Interactive v1 没有 stage/upload 文件 API。
+  innovus_snapshot_cache_root: ""
+
+  # ── 当前预留/未强制执行 ────────────────────────────────────────────────────
+  # 这些字段保留配置兼容性，但当前仍使用本地 process，不实施 CPU 或网络隔离。
+  worker_mode: process
+  cpus: 1.0
+  network_mode: allow
+
+  # ── HTTP 并发（server） ────────────────────────────────────────────────────
+  # HTTP worker 线程上限。
+  # 可选值/范围：0 表示根据已启用的 legacy pool 和 interactive capacity 自动推导；
+  # 正整数表示显式线程数。它控制 HTTP 同步处理线程，不是 EDA 进程/license 上限。
+  http_thread_limit: 0
