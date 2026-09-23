@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "eda-sandbox": {
-      "command": "/usr/local/bin/eda-sandbox-mcp",
-      "args": ["--endpoint", "http://127.0.0.1:8765"],
-      "cwd": "/opt/eda-sandbox"
-    }
-  }
-}

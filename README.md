@@ -14,8 +14,8 @@
 ```text
 eda_image/
 ├── Dockerfile*           # 镜像构建配置
-├── science_eda/          # 沙箱服务代码
-└── eda_image/            # 另一份镜像构建目录，含 v0_3 和依赖清单
+├── requirements-sandbox.txt # 沙箱服务依赖
+└── science_eda/          # 沙箱服务代码
 sandbox_monitor/
 ├── server.py            # 监控页面后端与沙箱 API 代理
 ├── requirements.txt     # 监控服务依赖
@@ -27,12 +27,12 @@ sandbox_monitor/
 在已配置 EDA 工具及有效许可证的 Linux 环境中，使用 Python 3.10 或更新版本。从仓库根目录执行：
 
 ```bash
-cd eda_image/eda_image
+cd eda_image
 python -m pip install -r requirements-sandbox.txt
 python -m science_eda.sandbox.server --config science_eda/sandbox/science_eda.example.yaml
 ```
 
-示例配置启用交互式 API，默认监听 `127.0.0.1:8765`。运行前请根据环境调整工具路径和会话配置，详见[沙箱文档](eda_image/eda_image/science_eda/sandbox/README.md)及[配置示例](eda_image/eda_image/science_eda/sandbox/science_eda.example.yaml)。
+示例配置启用交互式 API，默认监听 `127.0.0.1:8765`。运行前请根据环境调整工具路径和会话配置，详见[沙箱文档](eda_image/science_eda/sandbox/README.md)及[配置示例](eda_image/science_eda/sandbox/science_eda.example.yaml)。
 
 ## 启动监控界面
 
@@ -53,4 +53,4 @@ python sandbox_monitor/server.py
 
 ## Docker 镜像
 
-镜像配置位于 `eda_image/` 及其同名子目录。构建前需准备 Dockerfile 指定的基础镜像和本地资源；部分版本依赖 `bin/claude`，该文件未纳入 Git。请按所选 Dockerfile 准备构建上下文。
+镜像配置位于 `eda_image/`。构建前需准备 Dockerfile 指定的基础镜像和本地资源；部分版本依赖 `bin/claude`，该文件未纳入 Git。请按所选 Dockerfile 准备构建上下文。
