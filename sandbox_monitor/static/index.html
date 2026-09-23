@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScienceEDA Sandbox Monitor</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                        <rect width="32" height="32" rx="6" fill="#1e3a5f"/>
+                        <path d="M8 16L14 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <h1 class="title">ScienceEDA Sandbox Monitor</h1>
+            </div>
+            <div class="header-right">
+                <div class="connection-status" id="connection-status">
+                    <span class="status-dot disconnected"></span>
+                    <span class="status-text">Connecting...</span>
+                </div>
+                <div class="refresh-controls">
+                    <label class="auto-refresh-toggle">
+                        <input type="checkbox" id="auto-refresh" checked>
+                        <span>Auto-refresh</span>
+                    </label>
+                    <button class="btn btn-secondary" id="refresh-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+                <div class="last-update" id="last-update">
+                    Last update: --
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Sidebar Navigation -->
+            <nav class="sidebar" id="sidebar">
+                <div class="nav-item active" data-view="active-sessions">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <path d="M9 9h6M9 13h6M9 17h4"/>
+                    </svg>
+                    <span>Active Sessions</span>
+                    <span class="nav-badge" id="nav-active-count">0</span>
+                </div>
+                <div class="nav-item" data-view="recently-closed">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l4 2"/>
+                    </svg>
+                    <span>Recently Closed</span>
+                    <span class="nav-badge" id="nav-closed-count">0</span>
+                </div>
+            </nav>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Sandbox Info Panel -->
+                <section class="info-panel" id="info-panel">
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">Schema Version</span>
+                            <span class="info-value" id="schema-version">--</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Deployment Mode</span>
+                            <span class="info-value" id="deployment-mode">--</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Log Root</span>
+                            <span class="info-value info-value-path" id="log-root">--</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Supported Tools</span>
+                            <span class="info-value" id="supported-tools">--</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Active Sessions Section -->
+                <section class="sessions-section" id="active-sessions-view">
+                    <div class="section-header">
+                        <h2 class="section-title">Active Sessions</h2>
+                        <div class="filter-controls">
+                        <!-- Search -->
+                        <div class="search-box">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/>
+                                <path d="M21 21l-4.35-4.35"/>
+                            </svg>
+                            <input type="text" id="search-input" placeholder="Search sessions...">
+                        </div>
+                        <!-- Filter Tabs -->
+                        <div class="filter-tabs" id="filter-tabs">
+                            <button class="filter-tab active" data-filter="all">All <span class="tab-count" id="count-all">0</span></button>
+                            <button class="filter-tab" data-filter="READY">Ready <span class="tab-count" id="count-READY">0</span></button>
+                            <button class="filter-tab" data-filter="BUSY">Busy <span class="tab-count" id="count-BUSY">0</span></button>
+                            <button class="filter-tab" data-filter="LOST">Lost <span class="tab-count" id="count-LOST">0</span></button>
+                            <button class="filter-tab" data-filter="STOPPED">Stopped <span class="tab-count" id="count-STOPPED">0</span></button>
+                        </div>
+                        <!-- Sort -->
+                        <select id="sort-select" class="sort-select">
+                            <option value="created_at-desc">Newest First</option>
+                            <option value="created_at-asc">Oldest First</option>
+                            <option value="last_active_at-desc">Last Active (Newest)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div class="loading-state" id="loading-state">
+                    <div class="spinner"></div>
+                    <span>Loading sessions...</span>
+                </div>
+
+                <!-- Empty State -->
+                <div class="empty-state" id="empty-state" style="display: none;">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <path d="M9 9h6M9 13h6M9 17h4"/>
+                    </svg>
+                    <p>No active sessions</p>
+                    <span class="empty-hint">Sessions will appear here when Claude Code creates them</span>
+                </div>
+
+                <!-- Error State -->
+                <div class="error-state" id="error-state" style="display: none;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 8v4M12 16h.01"/>
+                    </svg>
+                    <p class="error-message" id="error-message">Failed to load sessions</p>
+                    <button class="btn btn-primary" onclick="app.refresh()">Retry</button>
+                </div>
+
+                <!-- Sessions Grid -->
+                <div class="sessions-grid" id="sessions-grid"></div>
+
+                <!-- Pagination -->
+                <div class="pagination" id="pagination" style="display: none;">
+                    <button class="btn btn-secondary btn-sm" id="page-prev" disabled>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M15 18l-6-6 6-6"/>
+                        </svg>
+                        Prev
+                    </button>
+                    <span class="page-info" id="page-info">Page 1 of 1</span>
+                    <button class="btn btn-secondary btn-sm" id="page-next" disabled>
+                        Next
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 18l6-6-6-6"/>
+                        </svg>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Recently Closed Section -->
+            <section class="sessions-section" id="recently-closed-view" style="display: none;">
+                <div class="section-header">
+                    <h2 class="section-title">Recently Closed</h2>
+                </div>
+                <div class="sessions-grid" id="closed-sessions-grid"></div>
+            </section>
+        </main>
+
+        <!-- Confirm Dialog -->
+        <div class="confirm-overlay" id="confirm-overlay" style="display: none;">
+            <div class="confirm-dialog">
+                <h3 class="confirm-title">Confirm Action</h3>
+                <p class="confirm-message" id="confirm-message">Are you sure?</p>
+                <div class="confirm-actions">
+                    <button class="btn btn-secondary" id="confirm-cancel">Cancel</button>
+                    <button class="btn btn-danger" id="confirm-ok">Confirm</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detail Panel (Modal) -->
+        <div class="detail-overlay" id="detail-overlay" style="display: none;">
+            <div class="detail-panel" id="detail-panel">
+                <div class="detail-header">
+                    <h3 class="detail-title" id="detail-title">Session Details</h3>
+                    <button class="btn-close" id="close-detail">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="detail-content" id="detail-content">
+                    <!-- Dynamic content will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Templates -->
+    <template id="session-card-template">
+        <div class="session-card" data-session-id="">
+            <div class="card-header">
+                <div class="session-id-row">
+                    <span class="session-id"></span>
+                    <div class="status-badges">
+                        <span class="status-badge session-state"></span>
+                        <span class="status-badge runtime-state"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="info-row">
+                    <span class="info-label">Tool</span>
+                    <span class="info-value tool-kind"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Version</span>
+                    <span class="info-value tool-version"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Workspace</span>
+                    <span class="info-value workspace-path"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Created</span>
+                    <span class="info-value created-at"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Last Active</span>
+                    <span class="info-value last-active"></span>
+                </div>
+            </div>
+            <div class="card-footer">
+                <button class="btn btn-primary btn-sm view-history-btn">View History</button>
+                <button class="btn btn-danger btn-sm close-session-btn">Close</button>
+            </div>
+        </div>
+    </template>
+
+    <template id="execution-item-template">
+        <div class="execution-item" data-execution-id="">
+            <div class="execution-header">
+                <div class="execution-sequence">#<span class="sequence-num"></span></div>
+                <div class="execution-status">
+                    <span class="status-badge execution-state"></span>
+                </div>
+                <div class="execution-time">
+                    <span class="duration"></span>
+                </div>
+            </div>
+            <div class="execution-details" style="display: none;">
+                <div class="info-row">
+                    <span class="info-label">Request ID</span>
+                    <span class="info-value request-id mono"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Execution ID</span>
+                    <span class="info-value execution-id mono"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Submitted</span>
+                    <span class="info-value submitted-at"></span>
+                </div>
+                <div class="code-section">
+                    <div class="code-header">
+                        <span class="code-label">Code</span>
+                        <span class="exit-code"></span>
+                    </div>
+                    <pre class="code-block"><code class="tcl code-content"></code></pre>
+                </div>
+                <div class="output-section">
+                    <div class="output-header">
+                        <span class="output-label">Output Preview</span>
+                        <span class="output-stats"></span>
+                    </div>
+                    <pre class="output-block"><code class="output-content"></code></pre>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/tcl.min.js"></script>
+    <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
