@@ -5,13 +5,18 @@
 ## 主要功能
 
 - **沙箱服务**：管理工具进程和工作区会话，通过 HTTP API 执行任务、查询状态与执行历史。
-- **MCP 接入**：提供交互式沙箱的 MCP 服务入口。
+- **MCP 接入**：提供 ScienceEDA 和 pandas worker 两套适配器，统一支持创建会话、执行 Tcl 和关闭会话。
 - **Web 监控**：查看会话列表、状态和执行历史，并关闭会话。
 - **镜像配置**：保留多个版本的 Dockerfile，用于构建 EDA 运行环境。
 
 ## 目录结构
 
 ```text
+MCP_for_EDA_tools/
+├── README.md            # MCP 适配器使用入口
+├── science_eda/         # ScienceEDA 适配器、联调脚本与说明
+└── pandas/              # pandas 适配器、联调脚本与接入方案
+backend_api_mapping.md  # 两种后端的接口与字段映射
 eda_image/
 ├── Dockerfile*           # 镜像构建配置
 ├── requirements-sandbox.txt # 沙箱服务依赖
@@ -50,6 +55,32 @@ python sandbox_monitor/server.py
 | `SANDBOX_HOST` | `http://127.0.0.1:8765` | 监控后端连接的沙箱地址 |
 | `MONITOR_PORT` | `8766` | 监控页面端口 |
 | `SANDBOX_TIMEOUT` | `30` | 代理请求超时时间，单位为秒 |
+
+## MCP 工具接入
+
+两套适配器通过 stdio 提供 `create_session`、`execute_in_session` 和 `destroy_session`，分别连接 ScienceEDA 沙箱与 pandas EDA worker。此处 pandas 指 EDA worker 服务。
+
+在仓库根目录安装依赖，再按后端选择启动命令：
+
+```bash
+python -m pip install httpx
+
+# ScienceEDA 沙箱
+python MCP_for_EDA_tools/science_eda/interactive_mcp_server.py --endpoint http://127.0.0.1:8765
+
+# pandas 控制面：请替换为实际部署地址
+python MCP_for_EDA_tools/pandas/interactive_mcp_server.py --endpoint http://control-plane.example:8765
+```
+
+MCP 客户端使用上述命令启动适配器；底层 HTTP 后端需已启动。pandas 也可通过 `--worker-url` 直接指定 worker。工作区必须在 MCP 本机及后端以相同绝对路径可访问。
+
+- [MCP 目录说明](MCP_for_EDA_tools/README.md)
+- [ScienceEDA 工具说明](MCP_for_EDA_tools/science_eda/README.md)
+- [pandas 工具说明](MCP_for_EDA_tools/pandas/README.md)
+- [pandas 接入方案](MCP_for_EDA_tools/pandas/integration_plan.md)
+- [后端 API 映射](backend_api_mapping.md)
+
+各后端目录中的 `check_backend.py` 用于真实环境联调，运行前可用 `--help` 查看参数。
 
 ## Docker 镜像
 
